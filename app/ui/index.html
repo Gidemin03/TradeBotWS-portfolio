@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8" />
+    <title>PoE Trade Bot</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <!-- Tailwind через CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'bg-main': '#050013',
+                        'bg-card': '#09041F',
+                        'accent': '#A855F7',
+                        'accent-soft': '#4C1D95',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            background: radial-gradient(circle at top, #1f093a 0, #050013 45%, #020008 100%);
+        }
+        .glass-card {
+            background: rgba(6, 2, 25, 0.95);
+            border-radius: 1.25rem;
+            border: 1px solid rgba(168, 85, 247, 0.18);
+            box-shadow:
+                0 0 30px rgba(168, 85, 247, 0.18),
+                0 0 60px rgba(59, 130, 246, 0.12);
+        }
+        .glass-card-soft {
+            background: rgba(7, 3, 30, 0.85);
+            border-radius: 1.25rem;
+            border: 1px solid rgba(148, 163, 184, 0.25);
+        }
+        .scroll-thin::-webkit-scrollbar {
+            width: 6px;
+        }
+        .scroll-thin::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .scroll-thin::-webkit-scrollbar-thumb {
+            background: rgba(148, 163, 184, 0.5);
+            border-radius: 9999px;
+        }
+        .neon-ring {
+            box-shadow:
+                0 0 20px rgba(244, 114, 182, 0.6),
+                0 0 50px rgba(168, 85, 247, 0.9);
+        }
+        .status-dot {
+            box-shadow: 0 0 8px currentColor;
+        }
+    </style>
+</head>
+<body class="min-h-screen text-slate-100 antialiased">
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-10 space-y-6">
+
+    <!-- Top bar -->
+    <header class="flex items-center justify-between gap-4">
+        <div>
+            <h1 class="text-2xl sm:text-3xl font-semibold tracking-tight">
+                <span class="text-slate-200">PoE Trade Bot</span>
+                <span class="ml-2 text-sm px-2 py-0.5 rounded-full bg-accent-soft/60 text-accent uppercase tracking-[0.2em]">
+                    V 0.12
+                </span>
+            </h1>
+        </div>
+
+        <!-- маленький индикатор статуса -->
+        <div class="flex items-center gap-3 glass-card-soft px-3 py-2">
+            <div id="status-dot" class="w-2.5 h-2.5 rounded-full status-dot bg-emerald-400"></div>
+            <div class="text-xs leading-tight">
+                <div class="uppercase text-[0.65rem] text-slate-400">Статус бота</div>
+                <div id="status-text" class="text-xs text-slate-100">Загрузка...</div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main grid: 4 карточки в 2 ряда -->
+    <div class="grid grid-cols-12 gap-9 items-stretch">
+
+        <!-- Live search: верхний контрол (лево, верх) -->
+        <section class="col-span-12 lg:col-span-9 glass-card p-4 space-y-6">
+            <div class="flex items-center justify-between mb-1">
+                <h2 class="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
+                    Live Search пресеты
+                </h2>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+                <div class="md:col-span-3">
+                    <label class="block text-[0.7rem] uppercase text-slate-400 mb-1">
+                        Имя пресета
+                    </label>
+                    <input id="preset-name"
+                           type="text"
+                           placeholder="Например: Watcher дешево"
+                           class="w-full bg-slate-900/70 border border-slate-700/70 rounded-xl px-3 py-2 text-xs placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-accent focus:border-accent">
+                </div>
+                <div class="md:col-span-5">
+                    <label class="block text-[0.7rem] uppercase text-slate-400 mb-1">
+                        URL-ссылка
+                    </label>
+                    <input id="preset-url"
+                           type="text"
+                           placeholder="https://www.pathofexile.com/trade/search/..."
+                           class="w-full bg-slate-900/70 border border-slate-700/70 rounded-xl px-3 py-2 text-xs placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-accent focus:border-accent">
+                </div>
+                <div class="md:col-span-2">
+                    <label class="block text-[0.7rem] uppercase text-slate-400 mb-1">
+                        Режим
+                    </label>
+                    <select id="preset-mode"
+                            class="w-full bg-slate-900/70 border border-slate-700/70 rounded-xl px-3 py-[0.55rem] text-xs focus:outline-none focus:ring-1 focus:ring-accent focus:border-accent">
+                        <option value="only_tp">Только ТП</option>
+                        <option value="autobuy">Автозакупка</option>
+                    </select>
+                </div>
+                <div class="md:col-span-2 flex justify-end items-end">
+                    <button id="btn-add-preset"
+                            class="w-40 h-10 px-4 text-xs rounded-xl bg-accent hover:bg-violet-500 text-white font-semibold shadow-md shadow-fuchsia-500/40 transition">
+                        Добавить пресет
+                    </button>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
+                <div class="md:col-span-3">
+                    <label class="block text-[0.7rem] uppercase text-slate-400 mb-1">
+                        POESESSID
+                    </label>
+                    <input id="poe-sessid"
+                           type="text"
+                           placeholder="session id..."
+                           class="w-full bg-slate-900/70 border border-slate-700/70 rounded-xl px-3 py-2 text-xs placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-accent focus:border-accent">
+                </div>
+                <div class="md:col-span-5">
+                    <label class="block text-[0.7rem] uppercase text-slate-400 mb-1">
+                        CF_CLEARANCE
+                    </label>
+                    <input id="cf-clearance"
+                           type="text"
+                           placeholder="cf_clearance..."
+                           class="w-full bg-slate-900/70 border border-slate-700/70 rounded-xl px-3 py-2 text-xs placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-accent focus:border-accent">
+                </div>
+                <div class="md:col-span-2"></div>
+                <div class="md:col-span-2 flex items-center justify-end">
+                    <button id="btn-save-cookies"
+                            class="w-40 h-10 px-4 text-xs rounded-xl bg-accent hover:bg-violet-500 text-white font-semibold shadow-md shadow-fuchsia-500/40 transition">
+                        Сохранить cookies
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Кликер (право, верх) -->
+        <section class="col-span-12 lg:col-span-3 glass-card p-4 flex flex-col items-center justify-center gap-4">
+            <div class="text-xs uppercase tracking-[0.2em] text-slate-400">
+                Кликер
+            </div>
+
+            <button id="clicker-button"
+                    class="relative w-40 h-40 rounded-full bg-gradient-to-br from-fuchsia-500 via-violet-500 to-sky-500 neon-ring flex flex-col items-center justify-center text-sm font-semibold tracking-[0.25em]">
+                <span>CLICKER</span>
+                <span id="clicker-state"
+                      class="mt-1 text-[0.7rem] tracking-[0.25em] uppercase text-slate-100/80">
+                    OFF
+                </span>
+                <div class="absolute inset-2 rounded-full border border-white/20"></div>
+            </button>
+
+            <p class="text-[0.68rem] text-center text-slate-400 leading-snug">
+                Кол-во кликов: 0
+            </p>
+        </section>
+
+        <!-- Пресеты (лево, низ) -->
+        <section class="col-span-12 lg:col-span-9 glass-card p-4 h-[380px] flex flex-col">
+            <div class="flex items-center justify-between mb-2">
+                <div>
+                    <h3 class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+                        Пресеты
+                    </h3>
+                    <p class="text-[0.7rem] text-slate-500">
+                        Клик по строке выделяет пресет. Режим меняется через попап.
+                    </p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button id="btn-start-all"
+                            class="px-3 py-2 text-xs rounded-xl bg-slate-900 border border-slate-700 hover:border-emerald-400 hover:text-emerald-300 transition">
+                        Включить все
+                    </button>
+                    <button id="btn-stop-all"
+                            class="px-3 py-2 text-xs rounded-xl bg-slate-900 border border-slate-700 hover:border-rose-400 hover:text-rose-300 transition">
+                        Выключить все
+                    </button>
+                </div>
+            </div>
+
+            <div class="mt-2 grid grid-cols-12 text-[0.7rem] text-slate-500 px-2 pb-1">
+                <div class="col-span-4">Имя</div>
+                <div class="col-span-3">Режим</div>
+                <div class="col-span-2">Статус</div>
+                <div class="col-span-3 text-right">Действия</div>
+            </div>
+
+            <div id="presets-list"
+                 class="mt-1 space-y-1 overflow-y-auto scroll-thin flex-1 pr-1 text-xs">
+                <!-- сюда рендерятся пресеты -->
+            </div>
+        </section>
+
+        <!-- События / логи (право, низ) -->
+        <section class="col-span-12 lg:col-span-3 glass-card p-4 flex flex-col h-[380px]">
+            <div class="flex items-center justify-between mb-3">
+                <h2 class="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
+                    События
+                </h2>
+            </div>
+
+            <div id="events-list"
+                 class="mt-1 space-y-1 text-xs text-slate-300 overflow-y-auto scroll-thin flex-1 pr-1">
+                <!-- здесь будут события -->
+            </div>
+        </section>
+    </div>
+
+    <!-- Статистика -->
+    <section class="glass-card p-4 mt-6 space-y-4">
+        <div class="flex items-center justify-between">
+            <h2 class="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
+                Статистика
+            </h2>
+            <span class="text-[0.65rem] text-slate-500">
+                числа пока заглушки, структура готова под бэкенд
+            </span>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+            <div class="glass-card-soft p-3 flex flex-col gap-1">
+                <span class="text-[0.65rem] uppercase text-slate-400">Всего ТП</span>
+                <span id="stat-teleports" class="text-lg font-semibold text-slate-50">0</span>
+            </div>
+            <div class="glass-card-soft p-3 flex flex-col gap-1">
+                <span class="text-[0.65rem] uppercase text-slate-400">Куплено</span>
+                <span id="stat-bought" class="text-lg font-semibold text-slate-50">0</span>
+            </div>
+            <div class="glass-card-soft p-3 flex flex-col gap-1">
+                <span class="text-[0.65rem] uppercase text-slate-400">Success rate</span>
+                <span id="stat-success" class="text-lg font-semibold text-violet-300">0%</span>
+            </div>
+        </div>
+
+        <div class="space-y-2">
+            <h3 class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+                По пресетам
+            </h3>
+            <div class="mt-1 overflow-x-auto">
+                <table class="w-full text-xs">
+                    <thead>
+                    <tr class="text-[0.7rem] text-slate-500 border-b border-slate-800/80">
+                        <th class="text-left py-1.5 pr-2">Пресет</th>
+                        <th class="text-left py-1.5 px-2">Статус</th>
+                        <th class="text-center py-1.5 px-2">ТП</th>
+                        <th class="text-center py-1.5 px-2">Куплено</th>
+                        <th class="text-center py-1.5 pl-2">Success</th>
+                    </tr>
+                    </thead>
+                    <tbody id="stats-presets-body" class="divide-y divide-slate-800/80">
+                    <!-- рендерится из JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+
+    </section>
+</div>
+
+<!-- Попап выбора режима пресета -->
+<div id="mode-modal"
+     class="fixed inset-0 bg-black/60 flex items-center justify-center z-40 hidden">
+    <div class="glass-card p-5 w-full max-w-sm">
+        <div class="flex items-center justify-between mb-3">
+            <h2 class="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
+                Режим пресета
+            </h2>
+            <button id="mode-modal-close"
+                    class="text-slate-400 hover:text-slate-200 text-xs">
+                ✕
+            </button>
+        </div>
+        <p class="text-xs text-slate-300 mb-3">
+            Выбери режим работы для пресета
+            <span id="mode-modal-name" class="font-semibold text-slate-100"></span>.
+        </p>
+        <div class="space-y-2">
+            <button data-mode="only_tp"
+                    class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-xs text-slate-200 hover:border-sky-400 hover:text-sky-300 text-left">
+                <div class="font-semibold text-[0.8rem]">Только ТП</div>
+                <div class="text-[0.7rem] text-slate-400">
+                    Бот только телепортируется к продавцу, покупку или нет решаешь сам.
+                </div>
+            </button>
+            <button data-mode="autobuy"
+                    class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-xs text-slate-200 hover:border-sky-400 hover:text-sky-300 text-left">
+                <div class="font-semibold text-[0.8rem]">Автозакупка</div>
+                <div class="text-[0.7rem] text-slate-400">
+                    Бот будет сам пытаться купить предмет.
+                </div>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Попап подтверждения удаления -->
+<div id="delete-modal"
+     class="fixed inset-0 bg-black/60 flex items-center justify-center z-40 hidden">
+    <div class="glass-card p-5 w-full max-w-sm">
+        <div class="flex items-center justify-between mb-3">
+            <h2 class="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
+                Подтверждение
+            </h2>
+            <button id="delete-modal-close"
+                    class="text-slate-400 hover:text-slate-200 text-xs">
+                ✕
+            </button>
+        </div>
+        <p class="text-sm text-slate-200 mb-4">
+            Удалить пресет?
+        </p>
+        <div class="flex justify-end gap-2">
+            <button id="delete-cancel"
+                    class="px-3 py-1.5 text-xs rounded-xl bg-slate-800 border border-slate-700 text-slate-200 hover:border-slate-500 transition">
+                Отмена
+            </button>
+            <button id="delete-confirm"
+                    class="px-3 py-1.5 text-xs rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-semibold shadow-md shadow-rose-500/30 transition">
+                Удалить
+            </button>
+        </div>
+    </div>
+</div>
+<script src="/static/app.js?v=3"></script>
+</body>
+</html>
